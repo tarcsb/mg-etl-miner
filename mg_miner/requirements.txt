@@ -1,0 +1,15 @@
+flake8
+black
+pytest
+mypy
+bandit
+selenium
+behave
+locust
+prometheus-client
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-prometheus
+grafanalib
+retrying
+
