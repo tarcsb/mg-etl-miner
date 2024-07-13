@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  mg-miner:
+    build: .
+    container_name: mg-miner
+    volumes:
+      - ./data:/data
+      - ./output:/output
+    ports:
+      - "8000:8000"
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/tmp
