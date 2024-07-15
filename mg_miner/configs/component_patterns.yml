@@ -1,0 +1,20 @@
+component_patterns:
+  backend: 
+    - "*.py"
+    - "*.java"
+    - "*.cs"
+  frontend: 
+    - "*.js"
+    - "*.html"
+    - "*.css"
+  testing_frameworks: 
+    - "test_*.py"
+    - "*.spec.js"
+  performance_testing: 
+    - "*.locust"
+    - "*.jmx"
+  static_code_analysis: 
+    - "*.flake8"
+    - "*.pylintrc"
+  unmatched: 
+    - "*"

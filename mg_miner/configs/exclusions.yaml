@@ -1,0 +1,18 @@
+excluded_dirs: 
+  - ".git"
+  - "__pycache__"
+  - "node_modules"
+  - "venv"
+  - ".env"
+  - ".mypy_cache"
+excluded_extensions: 
+  - "*.zip"
+  - "*.tar"
+  - "*.gz"
+  - "*.rar"
+  - "*.7z"
+  - "*.db"
+  - "*.sqlite"
+  - "*.bak"
+  - "*.log"
+  - "package-lock.json"

@@ -1,0 +1,535 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+.coverage/
+.pytest_cache/v/
+.pytest_cache/pytest-of-*
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+docs/_static/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+.jupyter/
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# dotenv
+.env
+.env.*
+
+# AWS CLI
+.aws/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Visual Studio Code
+.vscode/
+.vscode/*
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea/
+.idea/*
+
+# JetBrains specific
+*.idea
+*.idea/*
+*.iml
+.idea_modules/
+.idea_modules/*
+
+# Eclipse
+.project
+.cproject
+.settings/
+.settings/*
+
+# Thumbnails
+._*
+
+# Microsoft Office
+~$*
+
+# NetBeans
+nbproject/private/
+build/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Cloud files
+.gcloud/
+.aws/
+.gcp/
+.azure/
+
+# Local cloud credentials
+google_application_credentials.json
+azure_credentials.json
+
+# GCP Service Account Keys
+*.json
+
+# Logs
+logs/
+*.log
+*.out
+*.err
+
+# Docker
+docker-compose.override.yml
+.docker/
+Dockerfile*
+
+# Generated files
+*.swp
+*.swo
+*.bak
+*~
+
+# Other
+# For OSX
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# For Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Windows image file caches
+*.stackdump
+*.gid
+*.chk
+*.sav
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+# Linux
+*~
+
+# venv
+.venv/
+env/
+venv/
+ENV/
+venv.bak/
+env.bak/
+.VE/
+
+# tox
+.tox/
+.tox/
+
+# Coverage reports
+.coverage
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Environments
+.env
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Pylint
+.pylint.d/
+
+# Bandit security analysis
+.bandit/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Local history for IntelliJ-based IDEs
+.idea/
+
+# coverage
+.coverage
+.coverage.*
+.cache
+.nosetest_cache/
+.coverage*
+.cache
+.pytest_cache/
+.nosetest_cache
+
+# Sphinx
+docs/_build/
+
+# Cloud IDE directories
+.c9/
+.cloud9/
+*.code-workspace
+
+# virtualenv
+.env/
+.venv/
+env/
+ENV/
+venv.bak/
+env.bak/
+.python-version
+
+# Python-specific
+*.py[cod]
+*$py.class
+__pycache__/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+.coverage/
+.pytest_cache/v/
+.pytest_cache/pytest-of-*
+.coverage.*
+
+# Sphinx
+docs/_build/
+docs/_static/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# pyenv
+.python-version
+
+# virtualenv
+.venv/
+env/
+ENV/
+venv.bak/
+env.bak/
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Local History for IntelliJ-based IDEs
+.idea/
+
+# Coverage reports
+.coverage
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Environments
+.env
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# Bandit security analysis
+.bandit/
+
+# Pylint
+.pylint.d/
+
+# Cloud IDE directories
+.c9/
+.cloud9/
+*.code-workspace
+
+# AWS CLI
+.aws/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Cloud-specific
+.gcloud/
+.aws/
+.gcp/
+.azure/
+
+# Local cloud credentials
+google_application_credentials.json
+azure_credentials.json
+
+# GCP Service Account Keys
+*.json
+
+# Logs
+logs/
+*.log
+*.out
+*.err
+
+# Docker
+docker-compose.override.yml
+.docker/
+Dockerfile*
+
+# Generated files
+*.swp
+*.swo
+*.bak
+*~
+
+# OS-specific
+# For OSX
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# For Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Windows image file caches
+*.stackdump
+*.gid
+*.chk
+*.sav
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+# Linux
+*~
+.coverage

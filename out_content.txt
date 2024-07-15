@@ -1,0 +1,1100 @@
+=== service.yml ===
+apiVersion: v1
+kind: Service
+metadata:
+  name: mg-miner
+spec:
+  selector:
+    app: mg-miner
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: LoadBalancer
+
+
+=== setup_logging.json ===
+{
+    "version": 1,
+    "disable_existing_loggers": false,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        }
+    },
+    "handlers": {
+        "default": {
+            "level": "INFO",
+            "formatter": "standard",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout"
+        }
+    },
+    "root": {
+        "handlers": ["default"],
+        "level": "INFO"
+    }
+}
+
+
+=== deployment.yml ===
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mg-miner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mg-miner
+  template:
+    metadata:
+      labels:
+        app: mg-miner
+    spec:
+      containers:
+      - name: mg-miner
+        image: mg-miner:latest
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - mountPath: /data
+          name: data
+        - mountPath: /output
+          name: output
+      volumes:
+      - name: data
+        hostPath:
+          path: /path/to/data
+      - name: output
+        hostPath:
+          path: /path/to/output
+
+
+=== __init__.py ===
+
+
+=== utils.py ===
+import os
+import json
+import logging
+
+def setup_logging(config_path: str = None) -> None:
+    """Sets up logging configuration."""
+    if config_path and os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        logging.config.dictConfig(config)
+    else:
+        logging.basicConfig(level=logging.INFO)
+
+def load_config(config_path: str) -> Dict:
+    """Loads a JSON configuration file."""
+    with open(config_path, 'r') as f:
+        return json.load(f)
+
+def save_json(data: Dict, file_path: str) -> None:
+    """Saves a dictionary to a JSON file."""
+    with open(file_path, 'w') as f:
+        json.dump(data, f, indent=4)
+        f.flush()
+        os.fsync(f.fileno())
+
+def ensure_dir_exists(directory: str) -> None:
+    """Ensures that a directory exists."""
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+        logging.info(f"Created directory: {directory}")
+
+def validate_config(config: Dict, required_fields: Dict[str, type]) -> bool:
+    """Validates the configuration dictionary."""
+    for field, field_type in required_fields.items():
+        if field not in config:
+            logging.error(f"Missing required field: {field}")
+            return False
+        if not isinstance(config[field], field_type):
+            logging.error(f"Incorrect type for field {field}: expected {field_type}, got {type(config[field])}")
+            return False
+    return True
+
+def safe_write_file(file_path: str, content: str) -> None:
+    """Safely writes content to a file, ensuring the directory exists and the file is synced to disk."""
+    ensure_dir_exists(os.path.dirname(file_path))
+    with open(file_path, 'w') as f:
+        f.write(content)
+        f.flush()
+        os.fsync(f.fileno())
+        logging.info(f"Wrote content to file: {file_path}")
+
+
+=== __init__.py ===
+
+
+=== file_collector.py ===
+import os
+import json
+import logging
+from mg_miner.utils.utils import ensure_dir_exists, save_json, load_config
+
+class FileCollector:
+    """Collects files from the root directory based on the provided configuration."""
+
+    def __init__(self, root_dir: str, output_dir: str, config: Dict[str, Any], silent: bool = False) -> None:
+        self.root_dir = root_dir
+        self.output_dir = output_dir
+        self.config = config
+        self.silent = silent
+
+    @classmethod
+    def from_config(cls, config_path: str) -> "FileCollector":
+        """Creates an instance of FileCollector from a config file."""
+        config = load_config(config_path)
+        return cls(config['root_dir'], config['output_dir'], config)
+
+    def collect_files(self) -> None:
+        """Collects files based on the configuration and saves them to the output directory."""
+        logging.info("Collecting files...")
+        ensure_dir_exists(self.output_dir)
+
+        for root, dirs, files in os.walk(self.root_dir):
+            for file in files:
+                if not self._is_excluded(file, root):
+                    self._copy_file(file, root)
+
+        if not self.silent:
+            logging.info("File collection complete.")
+
+    def _is_excluded(self, file: str, root: str) -> bool:
+        """Determines if a file should be excluded based on the configuration."""
+        for pattern in self.config.get('excluded_extensions', []):
+            if fnmatch.fnmatch(file, pattern):
+                return True
+        for pattern in self.config.get('excluded_dirs', []):
+            if fnmatch.fnmatch(root, pattern):
+                return True
+        return False
+
+    def _copy_file(self, file: str, root: str) -> None:
+        """Copies a file to the output directory."""
+        src_path = os.path.join(root, file)
+        dest_path = os.path.join(self.output_dir, os.path.relpath(src_path, self.root_dir))
+        ensure_dir_exists(os.path.dirname(dest_path))
+        shutil.copy2(src_path, dest_path)
+        logging.info(f"Copied {src_path} to {dest_path}")
+
+
+=== __init__.py ===
+
+
+=== summary_creator.py ===
+import os
+import json
+import logging
+from typing import Dict, List
+from retrying import retry
+from mg_miner.utils.utils import load_config, save_json
+
+class SummaryCreator:
+    """Creates a summary HTML file from components.json in the output directory."""
+
+    def __init__(self, output_dir: str, silent: bool, theme: str) -> None:
+        self.output_dir = output_dir
+        self.silent = silent
+        self.theme = theme
+
+    @retry(wait_fixed=2000, stop_max_attempt_number=3)
+    def create_summary(self) -> None:
+        """Creates the summary HTML file."""
+        logging.info("Creating summary...")
+        try:
+            components_path = os.path.join(self.output_dir, 'components.json')
+            if not os.path.exists(components_path):
+                raise FileNotFoundError(f"{components_path} does not exist")
+
+            components = load_config(components_path)
+
+            summary_html = self._generate_html(components)
+
+            summary_path = os.path.join(self.output_dir, 'summary.html')
+            with open(summary_path, 'w') as f:
+                f.write(summary_html)
+                f.flush()
+                os.fsync(f.fileno())
+
+            if not self.silent:
+                logging.info(f"Summary created and saved to {summary_path}")
+
+        except Exception as e:
+            logging.error(f"Error creating summary: {e}", exc_info=True)
+            raise
+
+    def _generate_html(self, components: Dict[str, List[str]]) -> str:
+        """Generates HTML content based on the components and theme."""
+        html_content = f"<html><head><title>Project Summary</title></head><body>"
+        html_content += f"<h1>Project Components Summary</h1>"
+        for category, files in components.items():
+            html_content += f"<h2>{category}</h2><ul>"
+            for file in files:
+                html_content += f"<li>{file}</li>"
+            html_content += f"</ul>"
+        html_content += f"</body></html>"
+        return html_content
+
+
+=== component_detector.py ===
+import os
+import json
+import logging
+import fnmatch
+from typing import Dict, List
+from prometheus_client import Counter
+from opentelemetry import trace
+from mg_miner.utils.utils import load_config, save_json
+
+tracer = trace.get_tracer(__name__)
+component_detector_counter = Counter('component_detector_operations', 'Number of component detection operations')
+
+class ComponentDetector:
+    """Detects various components of the project (backend, frontend, testing frameworks)
+    based on the file types present in the output directory. Keeps track of unmatched files."""
+
+    def __init__(self, output_dir: str, silent: bool) -> None:
+        self.output_dir = output_dir
+        self.silent = silent
+
+    def detect_components(self) -> None:
+        """Detects components and saves the information to a JSON file."""
+        logging.info("Detecting components...")
+        component_detector_counter.inc()
+
+        with tracer.start_as_current_span("detect_components"):
+            try:
+                config = load_config(os.path.join(self.output_dir, 'config.json'))
+
+                components = self._initialize_components()
+                self._analyze_files(config, components)
+
+                save_json(components, os.path.join(self.output_dir, 'components.json'))
+
+                if not self.silent:
+                    logging.info(f"Components detected and saved to {os.path.join(self.output_dir, 'components.json')}")
+
+            except Exception as e:
+                logging.error(f"Error detecting components: {e}", exc_info=True)
+
+    def _initialize_components(self) -> Dict[str, List[str]]:
+        """Initialize the components dictionary."""
+        return {
+            "backend": [],
+            "frontend": [],
+            "testing_frameworks": [],
+            "performance_testing": [],
+            "static_code_analysis": [],
+            "unmatched": []
+        }
+
+    def _analyze_files(self, config: Dict, components: Dict[str, List[str]]) -> None:
+        """Analyze files and categorize them into components."""
+        for root, _, files in os.walk(self.output_dir):
+            for file in files:
+                matched = self._categorize_file(config, components, file)
+                if not matched:
+                    components['unmatched'].append(file)
+
+    def _categorize_file(self, config: Dict, components: Dict[str, List[str]], file: str) -> bool:
+        """Categorize a file into the appropriate component."""
+        for category, patterns in config.items():
+            if category in components:
+                if any(fnmatch.fnmatch(file, pattern) for pattern in patterns):
+                    components[category].append(file)
+                    return True
+        return False
+
+
+=== redactor.py ===
+import os
+import re
+import logging
+from typing import List, Dict
+from mg_miner.utils.utils import load_config
+
+class Redactor:
+    """Redacts sensitive information from files in the output directory based on compliance standards."""
+
+    def __init__(self, output_dir: str, compliance_standards: List[str], silent: bool = False) -> None:
+        self.output_dir = output_dir
+        self.compliance_standards = compliance_standards
+        self.silent = silent
+        self.patterns = self._load_patterns()
+
+    def _load_patterns(self) -> List[str]:
+        """Load sensitive patterns from compliance_patterns.json based on the given compliance standards."""
+        compliance_patterns_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'compliance_patterns.json')
+        all_patterns = load_config(compliance_patterns_path)
+        patterns = []
+        for standard in self.compliance_standards:
+            patterns.extend(all_patterns.get(standard, []))
+        return patterns
+
+    def redact_sensitive_info(self) -> None:
+        """Redacts sensitive information from files in the output directory."""
+        for root, _, files in os.walk(self.output_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                with open(file_path, 'r') as f:
+                    content = f.read()
+                redacted_content = self._redact_content(content)
+                with open(file_path, 'w') as f:
+                    f.write(redacted_content)
+                if not self.silent:
+                    logging.info(f"Redacted sensitive information in {file_path}")
+
+    def _redact_content(self, content: str) -> str:
+        """Redacts sensitive information from the given content."""
+        for pattern in self.patterns:
+            content = re.sub(pattern, '[REDACTED]', content)
+        return content
+
+
+=== cli.py ===
+import os
+import click
+from mg_miner.core.file_collector import FileCollector
+from mg_miner.core.component_detector import ComponentDetector
+from mg_miner.core.redactor import Redactor
+from mg_miner.core.summary_creator import SummaryCreator
+from mg_miner.utils.utils import setup_logging, load_config
+
+@click.command()
+@click.option('--config', default='configs/config.json', help='Path to the configuration file.')
+def main(config):
+    """Main entry point for the CLI."""
+    setup_logging(os.path.join(os.path.dirname(__file__), '..', 'configs', 'setup_logging.json'))
+
+    config = load_config(config)
+
+    # File Collection
+    file_collector = FileCollector.from_config(config)
+    file_collector.collect_files()
+
+    # Component Detection
+    component_detector = ComponentDetector(output_dir=config['output_dir'], silent=False)
+    component_detector.detect_components()
+
+    # Redaction
+    redactor = Redactor(output_dir=config['output_dir'], compliance_standards=['GDPR', 'HIPAA'])
+    redactor.redact_sensitive_info()
+
+    # Summary Creation
+    summary_creator = SummaryCreator(output_dir=config['output_dir'], theme='default', silent=False)
+    summary_creator.create_summary()
+
+if __name__ == '__main__':
+    main()
+
+
+=== run_tests.sh ===
+#!/bin/bash
+
+# Ensure we are in the correct directory
+cd "$(dirname "$0")/.."
+
+# Set the PYTHONPATH to the current directory
+export PYTHONPATH=$(pwd)
+
+# Run tests
+coverage run --source=mg_miner -m unittest discover -s tests/unit
+
+# Generate coverage report
+coverage html
+
+
+=== config.json ===
+{
+  "root_dir": "test_input",
+  "output_dir": "test_output",
+  "excluded_dirs": [".git", "__pycache__", "node_modules", "venv", ".env", ".mypy_cache"],
+  "excluded_extensions": ["*.zip", "*.tar", "*.gz", "*.rar", "*.7z", "*.db", "*.sqlite", "*.bak", "*.log", "package-lock.json"]
+}
+
+
+=== setup_logging.json ===
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "standard": {
+      "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    }
+  },
+  "handlers": {
+    "default": {
+      "level": "INFO",
+      "formatter": "standard",
+      "class": "logging.StreamHandler",
+      "stream": "ext://sys.stdout"
+    }
+  },
+  "root": {
+    "handlers": ["default"],
+    "level": "INFO"
+  }
+}
+
+
+=== compliance_patterns.json ===
+{
+  "GDPR": [ "\d{3}-\d{2}-\d{4}" ],
+  "HIPAA": [ "Sensitive data: \d{3}-\d{2}-\d{4}" ]
+}
+
+
+=== test_integration.py ===
+import unittest
+from unittest.mock import patch, MagicMock
+from click.testing import CliRunner
+from mg_miner.cli import main
+
+class TestIntegration(unittest.TestCase):
+
+    @patch('mg_miner.cli.FileCollector')
+    @patch('mg_miner.cli.ComponentDetector')
+    @patch('mg_miner.cli.Redactor')
+    @patch('mg_miner.cli.SummaryCreator')
+    @patch('mg_miner.cli.load_config')
+    def test_integration(self, mock_load_config, mock_summary_creator, mock_redactor, mock_component_detector, mock_file_collector):
+        mock_load_config.return_value = {
+            'root_dir': 'test_input',
+            'output_dir': 'test_output'
+        }
+
+        runner = CliRunner()
+        result = runner.invoke(main, ['--config', 'configs/config.json'])
+
+        self.assertEqual(result.exit_code, 0)
+        mock_file_collector.from_config.assert_called_once()
+        mock_component_detector.return_value.detect_components.assert_called_once()
+        mock_redactor.return_value.redact_sensitive_info.assert_called_once()
+        mock_summary_creator.return_value.create_summary.assert_called_once()
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+=== test_utils.py ===
+import os
+import json
+import logging
+import unittest
+from unittest.mock import patch, mock_open, MagicMock
+from mg_miner.utils.utils import (
+    setup_logging,
+    load_config,
+    save_json,
+    validate_config,
+    ensure_dir_exists,
+    safe_write_file
+)
+
+class TestUtils(unittest.TestCase):
+
+    @patch("os.path.exists")
+    @patch("builtins.open", new_callable=mock_open, read_data='{"version": 1}')
+    @patch("logging.config.dictConfig")
+    def test_setup_logging_with_config(self, mock_dict_config, mock_open, mock_exists):
+        mock_exists.return_value = True
+        setup_logging(config_path="fake_path")
+        mock_open.assert_called_once_with("fake_path", "r")
+        mock_dict_config.assert_called_once()
+
+    @patch("logging.basicConfig")
+    def test_setup_logging_without_config(self, mock_basic_config):
+        setup_logging(config_path=None)
+        mock_basic_config.assert_called_once()
+
+    @patch("builtins.open", new_callable=mock_open, read_data='{"key": "value"}')
+    def test_load_config(self, mock_open):
+        result = load_config("fake_path")
+        mock_open.assert_called_once_with("fake_path", "r")
+        self.assertEqual(result, {"key": "value"})
+
+    @patch("builtins.open", new_callable=mock_open)
+    def test_save_json(self, mock_open):
+        data = {"key": "value"}
+        save_json(data, "fake_path")
+        mock_open.assert_called_once_with("fake_path", "w")
+        written_data = "".join(call[0][0] for call in mock_open().write.call_args_list)
+        expected_data = json.dumps(data, indent=4)
+        self.assertEqual(written_data, expected_data)
+
+    def test_validate_config(self):
+        config = {"field1": "value1", "field2": 2}
+        required_fields = {"field1": str, "field2": int}
+        self.assertTrue(validate_config(config, required_fields))
+
+        config_missing_field = {"field1": "value1"}
+        self.assertFalse(validate_config(config_missing_field, required_fields))
+
+        config_wrong_type = {"field1": "value1", "field2": "wrong_type"}
+        self.assertFalse(validate_config(config_wrong_type, required_fields))
+
+    @patch("os.makedirs")
+    @patch("os.path.exists", return_value=False)
+    def test_ensure_dir_exists(self, mock_exists, mock_makedirs):
+        ensure_dir_exists("fake_dir")
+        mock_exists.assert_called_once_with("fake_dir")
+        mock_makedirs.assert_called_once_with("fake_dir")
+
+    @patch("builtins.open", new_callable=mock_open)
+    @patch("os.fsync")
+    @patch("os.path.exists", return_value=False)
+    @patch("os.makedirs")
+    def test_safe_write_file(self, mock_makedirs, mock_exists, mock_fsync, mock_open):
+        safe_write_file("fake_path/fake_file.txt", "content")
+        mock_exists.assert_called_once_with("fake_path")
+        mock_makedirs.assert_called_once_with("fake_path")
+        mock_open.assert_called_once_with("fake_path/fake_file.txt", "w")
+        mock_open().write.assert_called_once_with("content")
+        mock_fsync.assert_called_once_with(mock_open().fileno())
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+=== test_summary_creator.py ===
+import unittest
+from unittest.mock import patch, mock_open
+import os
+from mg_miner.core.summary_creator import SummaryCreator
+from mg_miner.utils.utils import ensure_dir_exists, save_json
+
+class TestSummaryCreator(unittest.TestCase):
+
+    def setUp(self):
+        self.output_dir = 'test_output'
+        ensure_dir_exists(self.output_dir)
+
+        self.components_path = os.path.join(self.output_dir, 'components.json')
+        components_data = {
+            "backend": ["file1.py"],
+            "frontend": ["file2.js"]
+        }
+        save_json(components_data, self.components_path)
+
+    @patch('builtins.open', new_callable=mock_open, read_data='{"backend": ["file1.py"], "frontend": ["file2.js"]}')
+    @patch('os.path.exists')
+    @patch('mg_miner.core.summary_creator.ensure_dir_exists')
+    def test_create_summary(self, mock_ensure_dir_exists, mock_exists, mock_open):
+        mock_exists.return_value = True
+        summary_creator = SummaryCreator(output_dir='output', theme='default', silent=False)
+        summary_creator.create_summary()
+        mock_open.assert_any_call('output/components.json', 'r')
+
+    @patch('builtins.open', new_callable=mock_open, read_data='{"backend": ["file1.py"], "frontend": ["file2.js"]}')
+    @patch('os.path.exists')
+    def test_create_summary_file_not_found(self, mock_exists, mock_open):
+        mock_exists.return_value = False
+        summary_creator = SummaryCreator(output_dir='output', theme='default', silent=False)
+        with self.assertRaises(FileNotFoundError):
+            summary_creator.create_summary()
+
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('os.makedirs')
+    def test_save_summary(self, mock_makedirs, mock_open):
+        summary_creator = SummaryCreator(output_dir='output', theme='default', silent=False)
+        summary_creator.save_summary('Summary content', 'output/summary.txt')
+        mock_makedirs.assert_called_once_with('output', exist_ok=True)
+        mock_open.assert_any_call('output/summary.txt', 'w')
+        mock_open().write.assert_called_once_with('Summary content')
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+=== test_component_detector.py ===
+import unittest
+from unittest.mock import patch, MagicMock
+from mg_miner.core.component_detector import ComponentDetector
+from mg_miner.utils.utils import ensure_dir_exists, save_json
+
+class TestComponentDetector(unittest.TestCase):
+
+    def setUp(self):
+        self.output_dir = 'test_output'
+        ensure_dir_exists(self.output_dir)
+
+        self.config_path = os.path.join(self.output_dir, 'config.json')
+        config_data = {
+            "backend": ["*.py"],
+            "frontend": ["*.js"],
+            "testing_frameworks": ["test_*.py"]
+        }
+        save_json(config_data, self.config_path)
+
+    @patch('os.walk')
+    @patch('mg_miner.utils.utils.load_config')
+    def test_detect_components(self, mock_load_config, mock_os_walk):
+        mock_load_config.return_value = {
+            "backend": ["*.py"],
+            "frontend": ["*.js"],
+            "testing_frameworks": ["test_*.py"]
+        }
+        mock_os_walk.return_value = [
+            (self.output_dir, ('subdir',), ('file1.py', 'file2.js', 'test_file.py'))
+        ]
+
+        detector = ComponentDetector(output_dir=self.output_dir, silent=True)
+        detector.detect_components()
+
+        components_path = os.path.join(self.output_dir, 'components.json')
+        self.assertTrue(os.path.exists(components_path))
+
+        with open(components_path, 'r') as f:
+            components = json.load(f)
+
+        self.assertIn('backend', components)
+        self.assertIn('frontend', components)
+        self.assertIn('testing_frameworks', components)
+        self.assertEqual(components['backend'], ['file1.py'])
+        self.assertEqual(components['frontend'], ['file2.js'])
+        self.assertEqual(components['testing_frameworks'], ['test_file.py'])
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+=== test_redactor.py ===
+import unittest
+from unittest.mock import patch, mock_open
+from mg_miner.core.redactor import Redactor
+
+class TestRedactor(unittest.TestCase):
+
+    @patch('os.walk')
+    @patch('builtins.open', new_callable=mock_open, read_data='Sensitive data: 123-45-6789')
+    @patch('mg_miner.utils.utils.load_config')
+    def test_redact_sensitive_info(self, mock_load_config, mock_open, mock_os_walk):
+        mock_load_config.return_value = {
+            "GDPR": ["\d{3}-\d{2}-\d{4}"],
+            "HIPAA": ["Sensitive data: \d{3}-\d{2}-\d{4}"]
+        }
+        mock_os_walk.return_value = [
+            ('/output', ('subdir',), ('file1.txt',))
+        ]
+
+        redactor = Redactor(output_dir='/output', compliance_standards=['GDPR', 'HIPAA'])
+        redactor.redact_sensitive_info()
+
+        mock_open.assert_any_call('/output/file1.txt', 'r')
+        mock_open.assert_any_call('/output/file1.txt', 'w')
+
+        handle = mock_open()
+        handle.write.assert_called_once_with('Sensitive data: [REDACTED]')
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+=== test_cli.py ===
+import unittest
+from unittest.mock import patch, MagicMock
+from click.testing import CliRunner
+from mg_miner.cli import main
+
+class TestCLI(unittest.TestCase):
+
+    @patch('mg_miner.cli.FileCollector')
+    @patch('mg_miner.cli.ComponentDetector')
+    @patch('mg_miner.cli.Redactor')
+    @patch('mg_miner.cli.SummaryCreator')
+    @patch('mg_miner.cli.load_config')
+    def test_main(self, mock_load_config, mock_summary_creator, mock_redactor, mock_component_detector, mock_file_collector):
+        mock_load_config.return_value = {
+            'root_dir': 'test_input',
+            'output_dir': 'test_output'
+        }
+
+        runner = CliRunner()
+        result = runner.invoke(main, ['--config', 'configs/config.json'])
+
+        self.assertEqual(result.exit_code, 0)
+        mock_file_collector.from_config.assert_called_once()
+        mock_component_detector.return_value.detect_components.assert_called_once()
+        mock_redactor.return_value.redact_sensitive_info.assert_called_once()
+        mock_summary_creator.return_value.create_summary.assert_called_once()
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+=== test_file_collector.py ===
+import unittest
+from unittest.mock import patch, mock_open
+import os
+import shutil
+from mg_miner.core.file_collector import FileCollector
+from mg_miner.utils.utils import ensure_dir_exists, save_json
+
+class TestFileCollector(unittest.TestCase):
+
+    def setUp(self):
+        self.test_dir = 'test_input'
+        self.output_dir = 'test_output'
+        ensure_dir_exists(self.test_dir)
+        ensure_dir_exists(self.output_dir)
+
+        self.config_path = os.path.join(self.output_dir, 'config.json')
+        config_data = {
+            "root_dir": self.test_dir,
+            "output_dir": self.output_dir,
+            "excluded_dirs": [],
+            "excluded_extensions": ["*.log"]
+        }
+        save_json(config_data, self.config_path)
+
+    @patch('os.walk')
+    @patch('shutil.copy2')
+    def test_collect_files(self, mock_copy, mock_os_walk):
+        mock_os_walk.return_value = [
+            (self.test_dir, ('subdir',), ('file1.py', 'file2.log'))
+        ]
+        config = {
+            "root_dir": self.test_dir,
+            "output_dir": self.output_dir,
+            "excluded_dirs": [],
+            "excluded_extensions": ["*.log"]
+        }
+        file_collector = FileCollector(self.test_dir, self.output_dir, config, silent=True)
+        file_collector.collect_files()
+        mock_copy.assert_called_once_with(os.path.join(self.test_dir, 'file1.py'), os.path.join(self.output_dir, 'file1.py'))
+        self.assertFalse(os.path.exists(os.path.join(self.output_dir, 'file2.log')))
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+=== stepwise ===
+[]
+
+=== lastfailed ===
+{
+  "mg_miner/tests/test_mg_miner.py::test_file_collector_with_exclude_files": true,
+  "mg_miner/tests/test_mg_miner.py::test_component_detector_with_additional_categories": true,
+  "mg_miner/tests/test_mg_miner.py::test_file_collector_excluded_dirs": true,
+  "mg_miner/tests/test_mg_miner.py::test_component_detector": true,
+  "mg_miner/tests/test_mg_miner.py::test_summary_creator": true,
+  "mg_miner/tests/test_mg_miner.py::test_file_collector": true,
+  "mg_miner/tests/test_mg_miner.py::test_file_collector_with_include_patterns": true,
+  "mg_miner/tests/test_mg_miner.py::test_redactor": true,
+  "mg_miner/tests/test_redactor.py::TestRedactor::test_redact_sensitive_info": true
+}
+
+=== nodeids ===
+[
+  "mg_miner/tests/test_cli.py::TestCLI::test_collect_command",
+  "mg_miner/tests/test_cli.py::TestCLI::test_detect_command",
+  "mg_miner/tests/test_cli.py::TestCLI::test_redact_command",
+  "mg_miner/tests/test_cli.py::TestCLI::test_summary_command",
+  "mg_miner/tests/test_mg_miner.py::test_component_detector",
+  "mg_miner/tests/test_mg_miner.py::test_component_detector_unmatched_files",
+  "mg_miner/tests/test_mg_miner.py::test_component_detector_with_additional_categories",
+  "mg_miner/tests/test_mg_miner.py::test_file_collector",
+  "mg_miner/tests/test_mg_miner.py::test_file_collector_excluded_dirs",
+  "mg_miner/tests/test_mg_miner.py::test_file_collector_with_empty_excludes",
+  "mg_miner/tests/test_mg_miner.py::test_file_collector_with_exclude_files",
+  "mg_miner/tests/test_mg_miner.py::test_file_collector_with_include_patterns",
+  "mg_miner/tests/test_mg_miner.py::test_redactor",
+  "mg_miner/tests/test_mg_miner.py::test_redactor_no_sensitive_info",
+  "mg_miner/tests/test_mg_miner.py::test_summary_creator",
+  "mg_miner/tests/test_mg_miner.py::test_summary_creator_with_dark_mode",
+  "mg_miner/tests/test_redactor.py::TestRedactor::test_redact_sensitive_info",
+  "mg_miner/tests/test_utils.py::TestUtils::test_ensure_dir_exists",
+  "mg_miner/tests/test_utils.py::TestUtils::test_load_config",
+  "mg_miner/tests/test_utils.py::TestUtils::test_safe_write_file",
+  "mg_miner/tests/test_utils.py::TestUtils::test_save_json",
+  "mg_miner/tests/test_utils.py::TestUtils::test_setup_logging_with_config",
+  "mg_miner/tests/test_utils.py::TestUtils::test_setup_logging_without_config",
+  "mg_miner/tests/test_utils.py::TestUtils::test_validate_config"
+]
+
+=== CACHEDIR.TAG ===
+Signature: 8a477f597d28d172789f06886806bc55
+# This file is a cache directory tag created by pytest.
+# For information about cache directory tags, see:
+#	https://bford.info/cachedir/spec.html
+
+
+=== .gitignore ===
+# Created by pytest automatically.
+*
+
+
+=== README.md ===
+# pytest cache directory #
+
+This directory contains data from the pytest's cache plugin,
+which provides the `--lf` and `--ff` options, as well as the `cache` fixture.
+
+**Do not** commit this to version control.
+
+See [the docs](https://docs.pytest.org/en/stable/how-to/cache.html) for more information.
+
+
+=== Dockerfile ===
+# Use the official Python image
+FROM python:3.9-slim
+
+# Set the working directory
+WORKDIR /app
+
+# Copy the requirements file
+COPY setup.py /app/
+
+# Install dependencies
+RUN pip install --upgrade pip && pip install .
+
+# Copy the project files
+COPY . /app
+
+# Expose the port for the application
+EXPOSE 8000
+
+# Define the command to run the application
+#TODO better use case for directory upload dir? think
+CMD ["mg-miner", "--root_dir", "/data", "--output_dir", "/output", "--serve", "--theme", "light"]
+
+
+=== MANIFEST.in ===
+include README.md
+include requirements.txt
+include setup.cfg
+include setup.py
+
+
+=== out.txt ===
+.
+├── Dockerfile
+├── MANIFEST.in
+├── concat_files.sh
+├── deployment.yml
+├── docker-compose.yml
+├── mg_miner
+│   ├── configs
+│   │   ├── compliance_patterns.json
+│   │   ├── config.json
+│   │   └── setup_logging.json
+│   ├── mg_miner
+│   │   ├── __init__.py
+│   │   ├── cli.py
+│   │   ├── core
+│   │   │   ├── __init__.py
+│   │   │   ├── component_detector.py
+│   │   │   ├── file_collector.py
+│   │   │   ├── redactor.py
+│   │   │   └── summary_creator.py
+│   │   └── utils
+│   │       ├── __init__.py
+│   │       └── utils.py
+│   ├── scripts
+│   │   └── run_tests.sh
+│   └── tests
+│       ├── integration
+│       │   └── test_integration.py
+│       └── unit
+│           ├── test_cli.py
+│           ├── test_component_detector.py
+│           ├── test_file_collector.py
+│           ├── test_redactor.py
+│           ├── test_summary_creator.py
+│           └── test_utils.py
+├── out.txt
+├── requirements.txt
+├── run_ut.sh
+├── service.yml
+├── setup.cfg
+├── setup.py
+└── setup_logging.json
+
+9 directories, 32 files
+
+
+=== concat_files.sh ===
+#!/bin/bash
+
+# Function to concatenate files with a separator
+concat_files() {
+    local dir=$1
+    local depth=$2
+    local output_file=$3
+
+    find "$dir" -maxdepth "$depth" -type f | while read -r file; do
+        echo "=== $(basename "$file") ===" >> "$output_file"
+        cat "$file" >> "$output_file"
+        echo -e "\n" >> "$output_file"
+    done
+}
+
+# Usage
+# First argument: Directory to search for files
+# Second argument: Depth level
+# Third argument: Output file
+concat_files "$1" "$2" "$3"
+
+
+
+=== setup.py ===
+from setuptools import setup, find_packages
+
+setup(
+    name="mg-miner",
+    version="1.0.0",
+    author="Jeffrey Plewak",
+    author_email="plewak.jeff@gmail.com",
+    description="A comprehensive tool to mine and summarize project files",
+    long_description=open('README.md').read(),
+    long_description_content_type="text/markdown",
+    url="https://github.com/tarcsb/mg-etl-miner",
+    packages=find_packages(),
+    include_package_data=True,
+    python_requires=">=3.8",
+    install_requires=[
+        "flake8",
+        "black",
+        "pytest",
+        "mypy",
+        "bandit",
+        "selenium",
+        "behave",
+        "locust",
+        "prometheus-client",
+        "opentelemetry-api",
+        "opentelemetry-sdk",
+        "opentelemetry-exporter-prometheus",
+        "grafanalib",
+    ],
+    extras_require={
+        "dev": [
+            "pytest-cov",
+            "sphinx",
+            "sphinx_rtd_theme",
+        ],
+    },
+    entry_points={
+        "console_scripts": [
+            "mg_miner=mg_miner.cli:main",
+        ],
+    },
+)
+
+
+=== .coveragerc ===
+[run]
+branch = True
+source = mg_miner
+
+[report]
+omit =
+    */tests/*
+    */venv/*
+    /usr/*
+    */dist-packages/*
+
+
+=== setup.cfg ===
+[metadata]
+name = mg-miner
+version = 1.0.0
+author = Jeffrey Plewak
+author_email = plewak.jeff@gmail.com
+description = A comprehensive tool to mine and summarize project files
+long_description = file: README.md
+long_description_content_type = text/markdown
+url = https://github.com/tarcsb/mg-etl-miner
+classifiers =
+    Programming Language :: Python :: 3
+    License :: OSI Approved :: MIT License
+    Operating System :: OS Independent
+
+[options]
+packages = find:
+include_package_data = True
+python_requires = >=3.8
+install_requires =
+    flake8
+    black
+    pytest
+    mypy
+    bandit
+    selenium
+    behave
+    locust
+    prometheus-client
+    opentelemetry-api
+    opentelemetry-sdk
+    opentelemetry-exporter-prometheus
+    grafanalib
+
+[options.extras_require]
+dev =
+    pytest-cov
+    sphinx
+    sphinx_rtd_theme
+
+[options.entry_points]
+console_scripts =
+    mg_miner = mg_miner.cli:main
+
+
+=== .gitignore ===
+.coverage
+
+
+=== run_ut.sh ===
+#!/bin/bash
+
+# Ensure we are in the correct directory
+cd "$(dirname "$0")"
+
+# Set the PYTHONPATH to the current directory
+export PYTHONPATH=$(pwd)
+
+# Run tests
+coverage run -m unittest discover -s mg_miner/tests
+
+# Generate coverage report
+coverage html
+coverage report -m
+
+
+=== requirements.txt ===
+flake8
+black
+pytest
+mypy
+bandit
+selenium
+behave
+locust
+prometheus-client
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-prometheus
+grafanalib
+
+
+=== docker-compose.yml ===
+version: '3.8'
+
+services:
+  mg-miner:
+    build: .
+    container_name: mg_miner
+    volumes:
+      - ./data:/data
+      - ./output:/output
+    ports:
+      - "8000:8000"
+    environment:
+      - PROMETHEUS_MULTIPROC_DIR=/tmp
+
+

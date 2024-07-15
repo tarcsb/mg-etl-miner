@@ -1,0 +1,15 @@
+database:
+  type: "sqlite"
+  path: "output/summary.db"
+  table_name: "analysis_results"
+  columns:
+    - name: "id"
+      type: "INTEGER PRIMARY KEY AUTOINCREMENT"
+    - name: "file_name"
+      type: "TEXT"
+    - name: "analysis_type"
+      type: "TEXT"
+    - name: "result"
+      type: "TEXT"
+    - name: "timestamp"
+      type: "TEXT"

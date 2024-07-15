@@ -1,0 +1,64 @@
+# cloud.yaml
+aws:
+  s3:
+    bucket_name: your-s3-bucket
+    region: your-region
+    access_key_id: your-access-key-id
+    secret_access_key: your-secret-access-key
+  logging:
+    log_group_name: your-log-group
+    stream_name: your-log-stream
+    region: your-region
+    access_key_id: your-access-key-id
+    secret_access_key: your-secret-access-key
+
+gcp:
+  storage:
+    bucket_name: your-gcs-bucket
+    project_id: your-project-id
+    credentials_file: /path/to/your/credentials.json
+  logging:
+    log_name: your-log-name
+    project_id: your-project-id
+    credentials_file: /path/to/your/credentials.json
+
+azure:
+  storage:
+    account_name: your-storage-account
+    account_key: your-account-key
+    container_name: your-container
+  logging:
+    workspace_id: your-workspace-id
+    shared_key: your-shared-key
+    log_type: your-log-type
+
+logging:
+  level: INFO  # Default logging level
+  handlers:
+    console:
+      level: DEBUG
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    file:
+      level: INFO
+      filename: logs/app.log
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    cloud:
+      aws:
+        enabled: false
+      gcp:
+        enabled: false
+      azure:
+        enabled: false
+
+database:
+  type: sqlite
+  sqlite:
+    file: data/database.db
+  postgres:
+    host: localhost
+    port: 5432
+    user: your-db-user
+    password: your-db-password
+    database: your-db-name
+  mysql:
+    hos

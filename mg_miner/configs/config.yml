@@ -1,0 +1,69 @@
+root_dir: test_input
+output_dir: test_output
+excluded_dirs: 
+  - .git
+  - __pycache__
+  - node_modules
+  - venv
+  - .env
+  - .mypy_cache
+excluded_extensions: 
+  - *.zip
+  - *.tar
+  - *.gz
+  - *.rar
+  - *.7z
+  - *.db
+  - *.sqlite
+  - *.bak
+  - *.log
+  - package-lock.json
+
+logging:
+  version: 1
+  disable_existing_loggers: false
+  formatters:
+    standard:
+      format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    verbose:
+      format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(filename)s - %(funcName)s'
+  handlers:
+    console:
+      class: logging.StreamHandler
+      formatter: standard
+      level: INFO
+      stream: ext://sys.stdout
+    file:
+      class: logging.FileHandler
+      formatter: verbose
+      level: DEBUG
+      filename: mg_miner.log
+  root:
+    handlers: [console, file]
+    level: INFO
+  loggers:
+    mg_miner:
+      level: DEBUG
+      handlers: [console, file]
+      propagate: no
+
+cloud:
+  aws:
+    access_key_id: ${AWS_ACCESS_KEY_ID}
+    secret_access_key: ${AWS_SECRET_ACCESS_KEY}
+    region: ${AWS_REGION}
+  gcp:
+    project_id: ${GCP_PROJECT_ID}
+    credentials: ${GCP_CREDENTIALS}
+  azure:
+    client_id: ${AZURE_CLIENT_ID}
+    secret: ${AZURE_SECRET}
+    tenant: ${AZURE_TENANT}
+    subscription_id: ${AZURE_SUBSCRIPTION_ID}
+
+database:
+  host: ${DB_HOST}
+  port: ${DB_PORT}
+  user: ${DB_USER}
+  password: ${DB_PASS}
+  name: ${DB_NAME}

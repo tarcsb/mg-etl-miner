@@ -1,0 +1,19 @@
+logging:
+  level: "INFO"
+  formats:
+    detailed: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    simple: "%(levelname)s - %(message)s"
+  handlers: 
+    - type: "stream"
+      level: "DEBUG"
+      format: "detailed"
+    - type: "file"
+      level: "WARNING"
+      format: "simple"
+      filename: "logs/mg_miner.log"
+    - type: "cloud"
+      level: "INFO"
+      format: "detailed"
+      cloud_provider: "gcp"
+      credentials_json: "path/to/gcp/credentials.json"
+      log_name: "mg_miner_logs"

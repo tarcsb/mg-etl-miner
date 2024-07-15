@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mg-miner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mg-miner
+  template:
+    metadata:
+      labels:
+        app: mg-miner
+    spec:
+      containers:
+      - name: mg-miner
+        image: mg-miner:latest
+        ports:
+        - containerPort: 8000
+        volumeMounts:
+        - mountPath: /data
+          name: data
+        - mountPath: /output
+          name: output
+      volumes:
+      - name: data
+        hostPath:
+          path: /path/to/data
+      - name: output
+        hostPath:
+          path: /path/to/output
